@@ -5,6 +5,7 @@ import { useInventory } from '../hooks/useInventory'
 import StockForm from '../components/StockForm'
 import ProductForm from '../components/ProductForm'
 import StaffManager from '../components/StaffManager'
+import Analytics from '../components/Analytics'
 
 
 
@@ -113,6 +114,9 @@ const { products, movements, loading, getStock, refreshAll } = useInventory()
           <button style={tabStyle('movements')}  onClick={() => setActiveTab('movements')}>Transaction Log</button>
           <button style={tabStyle('alerts')}     onClick={() => setActiveTab('alerts')}>
             ⚠️ Restock Alerts {lowStockProducts.length > 0 && `(${lowStockProducts.length})`}
+          </button>
+          <button style={tabStyle('analytics')} onClick={() => setActiveTab('analytics')}>
+            📊 Analytics
           </button>
 
        {/* Log Movement — admin only */}
@@ -284,6 +288,9 @@ const { products, movements, loading, getStock, refreshAll } = useInventory()
           <div style={{ maxWidth: '540px' }}>
             <ProductForm onSuccess={refreshAll} />
             </div>
+        )}
+        {activeTab === 'analytics' && (
+          <Analytics />
         )}
 
       </div>
