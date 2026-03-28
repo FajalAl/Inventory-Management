@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useInventory } from '../hooks/useInventory'
 import StockForm from '../components/StockForm'
 import ProductForm from '../components/ProductForm'
+import StaffManager from '../components/StaffManager'
+
 
 
 export default function Dashboard() {
@@ -14,19 +16,26 @@ export default function Dashboard() {
 const { products, movements, loading, getStock, refreshAll } = useInventory()
 
   // Auth guard
-  useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { window.location.href = '/'; return }
-      setSession(session)
+ useEffect(() => {
+  supabase.auth.getUser().then(async ({ data: { user }, error }) => {
+    if (error || !user) { window.location.href = '/'; return }
 
-      const { data } = await supabase
-        .from('users')
-        .select('full_name, role')
-        .eq('id', session.user.id)
-        .single()
-      setProfile(data)
-    })
-  }, [])
+    const { data: profile } = await supabase
+      .from('users')
+      .select('full_name, role, must_change_password')  // ← add flag here
+      .eq('id', user.id)
+      .single()
+
+    // ── Force password change before anything else ──────
+    if (profile?.must_change_password) {
+      window.location.href = '/change-password'
+      return
+    }
+
+    setSession(user)
+    setProfile(profile)
+  })
+}, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -105,17 +114,22 @@ const { products, movements, loading, getStock, refreshAll } = useInventory()
           <button style={tabStyle('alerts')}     onClick={() => setActiveTab('alerts')}>
             ⚠️ Restock Alerts {lowStockProducts.length > 0 && `(${lowStockProducts.length})`}
           </button>
+
        {/* Log Movement — admin only */}
-      {profile?.role === 'admin' && (
-        <button style={tabStyle('log')} onClick={() => setActiveTab('log')}>
-          Log Movement
+        {profile?.role === 'admin' && (
+          <>
+          <button style={tabStyle('log')} onClick={() => setActiveTab('log')}>
+            Log Movement
           </button>
-        )}
-       {/* Add Product — admin and staff */}
-       {['admin', 'staff'].includes(profile?.role) && (
-        <button style={tabStyle('addProduct')} onClick={() => setActiveTab('addProduct')}>
-          ➕ Add Product
+                 {/* Add Product — admin and staff */}
+          <button style={tabStyle('addProduct')} onClick={() => setActiveTab('addProduct')}>
+            ➕ Add Product
           </button>
+          {/* STAFF */}
+          <button style={tabStyle('staff')} onClick={() => setActiveTab('staff')}>
+            👥 Staff
+          </button>
+            </>
         )}
         </div>
        
@@ -261,7 +275,11 @@ const { products, movements, loading, getStock, refreshAll } = useInventory()
             <StockForm onSuccess={refreshAll} />
           </div>
         )}
-        {/* Add Product Tab — Admin Only */}
+        {activeTab === 'staff' && profile?.role === 'admin' && (
+          <StaffManager />
+        )}
+
+        {/* Add Product Tab — Admin And Staff */}
         {activeTab === 'addProduct' && ['admin', 'staff'].includes(profile?.role) && (
           <div style={{ maxWidth: '540px' }}>
             <ProductForm onSuccess={refreshAll} />
