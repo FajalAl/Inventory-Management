@@ -19,7 +19,7 @@ export default function StaffManager() {
   const fetchStaff = async () => {
     const { data, error } = await supabase
       .from('users')
-      .select('id, full_name, email, phone, role, is_active, created_at')
+      .select('id, full_name, email, phone, role, is_active, can_manage_stock, created_at')
       .order('created_at', { ascending: true })
 
     if (!error) setStaffList(data || [])
@@ -113,6 +113,23 @@ export default function StaffManager() {
       fetchStaff()
     }
   }
+
+  const handleStockPermission = async (member) => {
+  const action = member.can_manage_stock ? 'remove' : 'grant'
+  if (!confirm(`${action === 'grant' ? 'Grant' : 'Remove'} stock management permission for ${member.full_name}?`)) return
+
+  const { error } = await supabase
+    .from('users')
+    .update({ can_manage_stock: !member.can_manage_stock })
+    .eq('id', member.id)
+
+  if (error) {
+    setMessage('Error: ' + error.message)
+  } else {
+    setMessage(`✅ Permission updated for ${member.full_name}`)
+    fetchStaff()
+  }
+}
 
   // ── Styles ───────────────────────────────────────────
   const inputStyle = {
@@ -262,17 +279,31 @@ export default function StaffManager() {
                   {new Date(member.created_at).toLocaleDateString()}
                 </td>
                 <td style={{ padding: '12px 16px' }}>
-                  <button
-                    onClick={() => handleToggle(member)}
-                    style={{
-                      padding: '6px 14px', fontSize: '12px', fontWeight: '600',
-                      border: 'none', borderRadius: '6px', cursor: 'pointer',
-                      background: member.is_active ? '#fef2f2' : '#f0fdf4',
-                      color:      member.is_active ? '#dc2626' : '#15803d',
-                    }}>
-                    {member.is_active ? 'Deactivate' : 'Reactivate'}
-                  </button>
-                </td>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+
+    {/* Existing activate/deactivate button stays here */}
+    <button onClick={() => handleToggle(member)} style={{
+      padding: '6px 14px', fontSize: '12px', fontWeight: '600',
+      border: 'none', borderRadius: '6px', cursor: 'pointer',
+      background: member.is_active ? '#fef2f2' : '#f0fdf4',
+      color:      member.is_active ? '#dc2626' : '#15803d',
+    }}>
+      {member.is_active ? 'Deactivate' : 'Reactivate'}
+    </button>
+
+    {/* Stock permission toggle — only for staff, not admins */}
+    {member.role === 'staff' && (
+      <button onClick={() => handleStockPermission(member)} style={{
+        padding: '6px 14px', fontSize: '12px', fontWeight: '600',
+        border: 'none', borderRadius: '6px', cursor: 'pointer',
+        background: member.can_manage_stock ? '#fef9c3' : '#f3f4f6',
+        color:      member.can_manage_stock ? '#854d0e' : '#6b7280',
+      }}>
+        {member.can_manage_stock ? '📦 Stock: ON' : '📦 Stock: OFF'}
+      </button>
+    )}
+  </div>
+</td>
               </tr>
             ))}
           </tbody>
