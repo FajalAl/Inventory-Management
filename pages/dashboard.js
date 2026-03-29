@@ -7,6 +7,7 @@ import ProductForm from '../components/ProductForm'
 import StaffManager from '../components/StaffManager'
 import Analytics from '../components/Analytics'
 import EditProductModal from '../components/EditProductModal'
+import SaleCart from '../components/SaleCart'
 
 
 
@@ -26,7 +27,7 @@ const { products, movements, loading, getStock, refreshAll } = useInventory()
 
     const { data: profile } = await supabase
       .from('users')
-      .select('full_name, role, must_change_password')  // ← add flag here
+      .select('full_name, role, must_change_password, can_manage_stock')  // ← add flag here
       .eq('id', user.id)
       .single()
 
@@ -147,6 +148,9 @@ const handleDeactivate = async (product) => {
           <button style={tabStyle('analytics')} onClick={() => setActiveTab('analytics')}>
             📊 Analytics
           </button>
+          <button style={tabStyle('sell')} onClick={() => setActiveTab('sell')}>
+            🛍️ New Sale
+          </button>
 
        {/* Log Movement — admin only */}
         {profile?.role === 'admin' && (
@@ -160,6 +164,13 @@ const handleDeactivate = async (product) => {
           </button>
          </> 
         )}
+
+{(profile?.role === 'admin' || profile?.can_manage_stock) && (
+  <button style={tabStyle('log')} onClick={() => setActiveTab('log')}>
+    📦 Log Purchase
+  </button>
+)}
+
                  {/* Add Product — admin and staff */}
           {['admin', 'staff'].includes(profile?.role) && (
           <button style={tabStyle('addProduct')} onClick={() => setActiveTab('addProduct')}>
@@ -354,6 +365,16 @@ const handleDeactivate = async (product) => {
         {activeTab === 'analytics' && (
           <Analytics />
         )}
+        {activeTab === 'sell' && (
+          <SaleCart onSaleComplete={refreshAll} />
+        )}
+
+        {activeTab === 'log' &&
+  (profile?.role === 'admin' || profile?.can_manage_stock) && (
+  <div style={{ maxWidth: '500px' }}>
+    <StockForm onSuccess={refreshAll} />
+  </div>
+)}
 
       </div>
       {editingProduct && (
