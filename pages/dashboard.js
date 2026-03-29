@@ -6,6 +6,7 @@ import StockForm from '../components/StockForm'
 import ProductForm from '../components/ProductForm'
 import StaffManager from '../components/StaffManager'
 import Analytics from '../components/Analytics'
+import EditProductModal from '../components/EditProductModal'
 
 
 
@@ -13,6 +14,8 @@ export default function Dashboard() {
   const [session, setSession]   = useState(null)
   const [profile, setProfile]   = useState(null)
   const [activeTab, setActiveTab] = useState('inventory') // inventory | movements | alerts
+  const [editingProduct, setEditingProduct] = useState(null)
+  const [deactivating, setDeactivating]     = useState(null)
 
 const { products, movements, loading, getStock, refreshAll } = useInventory()
 
@@ -42,7 +45,33 @@ const { products, movements, loading, getStock, refreshAll } = useInventory()
     await supabase.auth.signOut()
     window.location.href = '/'
   }
+const handleDeactivate = async (product) => {
+  if (!confirm(`Remove "${product.name}" from active inventory?\n\nAll its history will be preserved.`)) return
 
+  setDeactivating(product.id)
+
+  // ── CIA: Verify admin before destructive action ──
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    alert('Session expired. Please log in again.')
+    setDeactivating(null)
+    window.location.href = '/'
+    return
+  }
+
+  const { error } = await supabase
+    .from('products')
+    .update({ is_active: false })
+    .eq('id', product.id)
+
+  setDeactivating(null)
+
+  if (error) {
+    alert('Error: ' + error.message)
+  } else {
+    refreshAll()
+  }
+}
 
   // Low stock products
   const lowStockProducts = products.filter(p => getStock(p.id) <= p.restock_threshold)
@@ -125,16 +154,19 @@ const { products, movements, loading, getStock, refreshAll } = useInventory()
           <button style={tabStyle('log')} onClick={() => setActiveTab('log')}>
             Log Movement
           </button>
-                 {/* Add Product — admin and staff */}
-          <button style={tabStyle('addProduct')} onClick={() => setActiveTab('addProduct')}>
-            ➕ Add Product
-          </button>
-          {/* STAFF */}
+           {/* STAFF */}
           <button style={tabStyle('staff')} onClick={() => setActiveTab('staff')}>
             👥 Staff
           </button>
-            </>
+         </> 
         )}
+                 {/* Add Product — admin and staff */}
+          {['admin', 'staff'].includes(profile?.role) && (
+          <button style={tabStyle('addProduct')} onClick={() => setActiveTab('addProduct')}>
+            ➕ Add Product
+          </button>
+          )}
+         
         </div>
        
            {/* Inventory Tab */}
@@ -144,7 +176,7 @@ const { products, movements, loading, getStock, refreshAll } = useInventory()
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
-                  {['Product', 'Category', 'SKU', 'Cost (KES)', 'Selling (KES)', 'In Stock', 'Status'].map(h => (
+                  {['Product', 'Category', 'SKU', 'Cost (KES)', 'Selling (KES)', 'In Stock', 'Status', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '12px 16px', textAlign: 'left',
                       fontSize: '13px', color: '#6b7280', borderBottom: '1px solid #e5e7eb' }}>
                       {h}
@@ -177,6 +209,36 @@ const { products, movements, loading, getStock, refreshAll } = useInventory()
                           {isLow ? '⚠️ Restock' : '✅ OK'}
                         </span>
                       </td>
+                      <td style={{ padding: '12px 16px' }}>
+  <div style={{ display: 'flex', gap: '6px' }}>
+    {/* Edit — admin only */}
+    {profile?.role === 'admin' && (
+      <button
+        onClick={() => setEditingProduct(product)}
+        style={{
+          padding: '5px 12px', fontSize: '12px', fontWeight: '600',
+          border: '1px solid #d1d5db', borderRadius: '6px',
+          background: 'white', cursor: 'pointer', color: '#374151',
+        }}>
+        ✏️ Edit
+      </button>
+    )}
+    {/* Deactivate — admin only */}
+    {profile?.role === 'admin' && (
+      <button
+        onClick={() => handleDeactivate(product)}
+        disabled={deactivating === product.id}
+        style={{
+          padding: '5px 12px', fontSize: '12px', fontWeight: '600',
+          border: 'none', borderRadius: '6px', cursor: 'pointer',
+          background: '#fef2f2', color: '#dc2626',
+          opacity: deactivating === product.id ? 0.5 : 1,
+        }}>
+        {deactivating === product.id ? '...' : '🗑 Remove'}
+      </button>
+    )}
+  </div>
+</td>
                     </tr>
                   )
                 })}
@@ -294,6 +356,16 @@ const { products, movements, loading, getStock, refreshAll } = useInventory()
         )}
 
       </div>
+      {editingProduct && (
+  <EditProductModal
+    product={editingProduct}
+    onClose={() => setEditingProduct(null)}
+    onSuccess={() => {
+      refreshAll()
+      setEditingProduct(null)
+    }}
+  />
+)}
     </div>
   )
 }
