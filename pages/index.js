@@ -106,6 +106,19 @@ export default function Home() {
                         value={password} onChange={e => setPassword(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handlePasswordLogin()}
                         autoComplete="current-password" />
+                        <a
+                        href="/forgot-password"
+                        style={{
+                          display: 'block',
+                          marginTop: '6px',
+                          fontSize: '13px',
+                          color: 'var(--green-700)',
+                          textAlign: 'right',
+                          textDecoration: 'none',
+                          fontWeight: 500,
+                          }}>
+                          Forgot password?
+                        </a>
                     </div>
                     <button className="btn btn-primary" onClick={handlePasswordLogin} disabled={loading}>
                       {loading ? 'Signing in...' : 'Sign In'}
