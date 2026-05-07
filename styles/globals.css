@@ -1,0 +1,90 @@
+/* ─────────────────────────────────────────────────────────
+   BOUTIQUE INVENTORY — Global Styles
+   Palette A: #9B9B8C · #AFA984 · #CEB17A · #4B442D
+   Palette B: #4B442D · #D68C4C · #FAB416 · #300E04
+───────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap');
+
+:root {
+  /* Brand colours */
+  --sage-grey:   #9B9B8C;
+  --warm-sage:   #AFA984;
+  --gold-tan:    #CEB17A;
+  --dark-brown:  #4B442D;
+  --burnt-orange:#D68C4C;
+  --amber:       #FAB416;
+  --near-black:  #300E04;
+
+  /* Surfaces */
+  --bg-base:     #FAF8F4;
+  --bg-card:     #FFFFFF;
+  --bg-warm:     #F5F0E8;
+  --bg-muted:    #EFEBE1;
+
+  /* Text */
+  --text-primary:   #300E04;
+  --text-secondary: #4B442D;
+  --text-muted:     #9B9B8C;
+  --text-light:     #AFA984;
+
+  /* Borders */
+  --border:      #E8E2D6;
+  --border-warm: #CEB17A40;
+
+  /* Semantic */
+  --success:     #4A7C59;
+  --success-bg:  #EDF4EF;
+  --error:       #8B2E2E;
+  --error-bg:    #F9EDED;
+  --warning:     #D68C4C;
+  --warning-bg:  #FDF3E8;
+
+  /* Typography */
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body:    'Jost', sans-serif;
+
+  /* Shadows */
+  --shadow-sm:   0 1px 3px rgba(48,14,4,0.06);
+  --shadow-md:   0 4px 16px rgba(48,14,4,0.08);
+  --shadow-lg:   0 12px 40px rgba(48,14,4,0.12);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-warm); }
+::-webkit-scrollbar-thumb { background: var(--gold-tan); border-radius: 3px; }
+
+/* Selection */
+::selection { background: var(--amber); color: var(--near-black); }
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Login page specifics ── */
+input::placeholder { color: #AFA984; }
+
+input:focus {
+  outline: none !important;
+  border-color: #CEB17A !important;
+  box-shadow: 0 0 0 3px rgba(206,177,122,0.15) !important;
+}
+
+button { font-family: 'Jost', sans-serif; }
+
+tr:hover td { background: #FAF8F4 !important; }
