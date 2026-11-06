@@ -9,6 +9,7 @@ import StaffManager from '../components/StaffManager'
 import Analytics from '../components/Analytics'
 import SaleCart from '../components/SaleCart'
 import EditProductModal from '../components/EditProductModal'
+import { usePermissions } from '../hooks/usePermissions'
 
 // ── SVG Icons (inline, no library needed) ─────────────
 const Icon = ({ name, size = 18 }) => {
@@ -45,6 +46,7 @@ export default function Dashboard() {
   const [mobileOpen, setMobileOpen]   = useState(false)
 
   const { products, movements, loading, getStock, refreshAll } = useInventory()
+  const { can, loaded: permsLoaded } = usePermissions()
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user }, error }) => {
@@ -84,12 +86,17 @@ export default function Dashboard() {
     setMobileOpen(false)
   }
 
-  if (!session) return <div className="loading-screen">Loading...</div>
+ if (!session || !permsLoaded) return <div className="loading-screen">Loading...</div>
   if (loading)  return <div className="loading-screen">Loading inventory...</div>
 
-  // ── Nav definition ─────────────────────────────────
-  const canStock = profile?.role === 'admin' || profile?.can_manage_stock
-  const isAdmin  = profile?.role === 'admin'
+  // ── Old Nav definition - Using the user roles ─────────────────────────────────
+  // const canStock = profile?.role === 'admin' || profile?.can_manage_stock
+  // const is Admin  = profile?.role === 'admin'
+  
+  // ── New Nav definition- Using the group roles─────────────────────────────────
+const canStock         = can('stock.receive')
+const canEditInventory = can('inventory.edit')
+const canManageStaff   = can('staff.manage')
 
   const navGroups = [
     {
@@ -112,7 +119,7 @@ export default function Dashboard() {
       items: [
         { id: 'addProduct', icon: 'plus',  label: 'Add Product' },
         ...(canStock ? [{ id: 'log',   icon: 'box',   label: 'Log Purchase' }] : []),
-        ...(isAdmin  ? [{ id: 'staff', icon: 'users', label: 'Staff'        }] : []),
+        ...(canEditInventory  ? [{ id: 'staff', icon: 'users', label: 'Staff'        }] : []),
       ]
     },
   ]
@@ -261,7 +268,7 @@ export default function Dashboard() {
                         <th>Selling (KES)</th>
                         <th>In Stock</th>
                         <th>Status</th>
-                        {isAdmin && <th>Actions</th>}
+                        {canEditInventory && <th>Actions</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -281,7 +288,7 @@ export default function Dashboard() {
                                 {isLow ? 'Restock' : 'OK'}
                               </span>
                             </td>
-                            {isAdmin && (
+                            {canEditInventory && (
                               <td>
                                 <div style={{ display: 'flex', gap: 6 }}>
                                   <button className="btn btn-ghost btn-sm" onClick={() => setEditingProduct(p)}>
@@ -394,7 +401,7 @@ export default function Dashboard() {
             )}
 
             {/* ── Staff ────────────────────────────── */}
-            {activeTab === 'staff' && isAdmin && <StaffManager />}
+            {activeTab === 'canManageStaff' && canEditInventory && <StaffManager />}
 
           </div>
         </main>
