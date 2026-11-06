@@ -246,111 +246,83 @@ export default function SaleCart({ onSaleComplete }) {
   }
 
   // ── Complete the sale ────────────────────────────────
-  const handleCompleteSale = async () => {
-    setMessage('')
+ const handleCompleteSale = async () => {
+  setMessage('')
 
-    if (cart.length === 0) {
-      setMessage('Add at least one product to the cart.')
-      return
-    }
+  if (cart.length === 0) {
+    setMessage('Add at least one product to the cart.')
+    return
+  }
 
-    // Block loss sales
-    const lossItems = cart.filter(i => i.unit_price < i.cost_price)
-    if (lossItems.length > 0) {
-      setMessage(`⛔ ${lossItems[0].name} is priced below cost. Fix before completing sale.`)
-      return
-    }
+  // Block loss sales
+  const lossItems = cart.filter(i => i.unit_price < i.cost_price)
+  if (lossItems.length > 0) {
+    setMessage(`Cannot complete sale: ${lossItems[0].name} is priced below cost price.`)
+    return
+  }
 
-    setSubmitting(true)
+  setSubmitting(true)
 
-    // ── CIA: Verify staff session ────────────────────
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      setMessage('Session expired. Please log in again.')
-      setSubmitting(false)
-      setTimeout(() => { window.location.href = '/' }, 2000)
-      return
-    }
+  // ── CIA: Verify session ──────────────────────────────
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    setMessage('Session expired. Please log in again.')
+    setSubmitting(false)
+    setTimeout(() => { window.location.href = '/' }, 2000)
+    return
+  }
 
-    // ── 1. Generate receipt number ───────────────────
-    const { data: receiptData } = await supabase
-      .rpc('generate_receipt_number')
-    const receiptNumber = receiptData
-
-    // ── 2. Create the sale record ────────────────────
-    const { data: sale, error: saleError } = await supabase
-      .from('sales')
-      .insert({
-        receipt_number: receiptNumber,
-        staff_id:       user.id,
-        customer_name:  customer.trim() || null,
-        notes:          notes.trim() || null,
-        total_amount:   cartTotal,
-      })
-      .select()
-      .single()
-
-    if (saleError) {
-      setMessage('Error creating sale: ' + saleError.message)
-      setSubmitting(false)
-      return
-    }
-
-    // ── 3. Insert sale items ─────────────────────────
-    const saleItems = cart.map(i => ({
-      sale_id:    sale.id,
+  // ── Call atomic database function ────────────────────
+  // Stock check + insert happen in one locked transaction.
+  // If another user sold the last item a millisecond ago,
+  // this will return an error — not a negative stock entry.
+  const { data: result, error: rpcError } = await supabase.rpc('complete_sale', {
+    p_staff_id:      user.id,
+    p_customer_name: customer.trim() || null,
+    p_notes:         notes.trim() || null,
+    p_total_amount:  cartTotal,
+    p_items: cart.map(i => ({
       product_id: i.product_id,
       quantity:   i.quantity,
       unit_price: i.unit_price,
     }))
+  })
 
-    const { error: itemsError } = await supabase
-      .from('sale_items').insert(saleItems)
+  setSubmitting(false)
 
-    if (itemsError) {
-      setMessage('Error saving items: ' + itemsError.message)
-      setSubmitting(false)
-      return
-    }
-
-    // ── 4. Log stock movements for each item ─────────
-    const movements = cart.map(i => ({
-      product_id: i.product_id,
-      user_id:    user.id,
-      type:       'sale',
-      quantity:   -Math.abs(i.quantity),
-      unit_price: i.unit_price,
-      notes:      `Sale ${receiptNumber}`,
-    }))
-
-    const { error: movError } = await supabase
-      .from('stock_movements').insert(movements)
-
-    if (movError) {
-      setMessage('Sale saved but stock movement error: ' + movError.message)
-      setSubmitting(false)
-      return
-    }
-
-    // ── 5. Show receipt ──────────────────────────────
-    setCompletedSale({
-      ...sale,
-      items: cart.map(i => ({
-        name:       i.name,
-        quantity:   i.quantity,
-        unit_price: i.unit_price,
-        subtotal:   i.subtotal,
-      })),
-    })
-
-    setCart([])
-    setCustomer('')
-    setNotes('')
-    setSubmitting(false)
-    onSaleComplete()
-    loadData() // Refresh stock
+  if (rpcError) {
+    setMessage('System error: ' + rpcError.message)
+    return
   }
 
+  if (!result.success) {
+    // Clear the out-of-stock item from the cart
+    // and refresh stock so the user sees the real number
+    setMessage(`Cannot complete sale: ${result.error}`)
+    await loadData() // Refresh real stock levels
+    setSubmitting(false)
+    return
+  }
+
+  // ── Sale succeeded ───────────────────────────────────
+  setCompletedSale({
+    id:             result.sale_id,
+    receipt_number: result.receipt_number,
+    created_at:     new Date().toISOString(),
+    items: cart.map(i => ({
+      name:       i.name,
+      quantity:   i.quantity,
+      unit_price: i.unit_price,
+      subtotal:   i.subtotal,
+    })),
+  })
+
+  setCart([])
+  setCustomer('')
+  setNotes('')
+  await loadData()
+  onSaleComplete()
+}
   // ── Styles ───────────────────────────────────────
   const inputStyle = {
     padding: '8px 12px', border: '1px solid #d1d5db',
@@ -375,6 +347,28 @@ export default function SaleCart({ onSaleComplete }) {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
+            <button
+    onClick={loadData}
+    title="Refresh stock levels"
+    style={{
+      padding: '8px 14px',
+      background: 'var(--gray-100)',
+      border: '1.5px solid var(--gray-300)',
+      borderRadius: 'var(--radius)',
+      fontSize: '13px',
+      fontWeight: 600,
+      color: 'var(--gray-600)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+    }}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10"/>
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+    </svg>
+    Refresh
+  </button>
         </div>
 
         <div style={{ display: 'grid',
