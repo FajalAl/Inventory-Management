@@ -254,67 +254,76 @@ export default function SaleCart({ onSaleComplete }) {
     return
   }
 
-  // Block loss sales
+  // Quick feedback only. The database enforces this too.
   const lossItems = cart.filter(i => i.unit_price < i.cost_price)
   if (lossItems.length > 0) {
-    setMessage(`Cannot complete sale: ${lossItems[0].name} is priced below cost price.`)
+    setMessage(`Cannot complete sale: ${lossItems[0].name} is priced below the minimum allowed.`)
     return
   }
 
   setSubmitting(true)
 
-  // ── CIA: Verify session ──────────────────────────────
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
-    setMessage('Session expired. Please log in again.')
+    setMessage('Session expired. Please sign in again.')
     setSubmitting(false)
     setTimeout(() => { window.location.href = '/' }, 2000)
     return
   }
 
-  // ── Call atomic database function ────────────────────
-  // Stock check + insert happen in one locked transaction.
-  // If another user sold the last item a millisecond ago,
-  // this will return an error — not a negative stock entry.
+  // Capture before the cart and form are cleared
+  const soldItems = cart.map(i => ({
+    name: i.name, quantity: i.quantity,
+    unit_price: i.unit_price, subtotal: i.subtotal,
+  }))
+  const soldCustomer = customer.trim() || null
+  const soldNotes    = notes.trim() || null
+
+  // The server decides who the seller is and what the total is
   const { data: result, error: rpcError } = await supabase.rpc('complete_sale', {
-    p_staff_id:      user.id,
-    p_customer_name: customer.trim() || null,
-    p_notes:         notes.trim() || null,
-    p_total_amount:  cartTotal,
+    p_customer_name: soldCustomer,
+    p_notes:         soldNotes,
     p_items: cart.map(i => ({
       product_id: i.product_id,
       quantity:   i.quantity,
       unit_price: i.unit_price,
-    }))
+    })),
   })
 
   setSubmitting(false)
 
-  if (rpcError) {
-    setMessage('System error: ' + rpcError.message)
+  if (rpcError || !result) {
+    setMessage('Something went wrong. Nothing was recorded. Please try again.')
     return
   }
 
   if (!result.success) {
-    // Clear the out-of-stock item from the cart
-    // and refresh stock so the user sees the real number
-    setMessage(`Cannot complete sale: ${result.error}`)
-    await loadData() // Refresh real stock levels
-    setSubmitting(false)
+    setMessage(result.error)
+
+    // Another user sold the stock first: correct the cart to what is really left
+    if (result.code === 'INSUFFICIENT_STOCK') {
+      setCart(prev =>
+        result.available <= 0
+          ? prev.filter(i => i.product_id !== result.product_id)
+          : prev.map(i =>
+              i.product_id === result.product_id
+                ? { ...i, quantity: result.available, stock: result.available,
+                    subtotal: result.available * i.unit_price }
+                : i
+            )
+      )
+    }
+    await loadData()
     return
   }
 
-  // ── Sale succeeded ───────────────────────────────────
   setCompletedSale({
     id:             result.sale_id,
     receipt_number: result.receipt_number,
     created_at:     new Date().toISOString(),
-    items: cart.map(i => ({
-      name:       i.name,
-      quantity:   i.quantity,
-      unit_price: i.unit_price,
-      subtotal:   i.subtotal,
-    })),
+    customer_name:  soldCustomer,
+    notes:          soldNotes,
+    items:          soldItems,
   })
 
   setCart([])
@@ -415,7 +424,7 @@ export default function SaleCart({ onSaleComplete }) {
         </div>
 
         {message && (
-          <div style={{
+          <div  role="alert" style={{
             marginTop: '16px', padding: '10px 14px', borderRadius: '6px',
             background: '#fef2f2', color: '#dc2626', fontSize: '13px',
           }}>
