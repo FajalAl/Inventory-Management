@@ -186,6 +186,7 @@ export default function StaffManager() {
           <select name="role" value={form.role}
             onChange={handleChange} style={inputStyle}>
             <option value="staff">Staff</option>
+            <option value="manager">Manager</option>
             <option value="admin">Admin</option>
           </select>
 

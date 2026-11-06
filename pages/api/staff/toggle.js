@@ -24,9 +24,13 @@ export default async function handler(req, res) {
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden — admin only' })
-  }
+  const { data: allowed, error: permError } = await supabaseAdmin.rpc(
+  'user_has_permission',
+  { p_user: user.id, p_key: 'staff.manage' }
+)
+if (permError || allowed !== true) {
+  return res.status(403).json({ error: 'Forbidden' })
+}
 
   // ── Toggle the target user ───────────────────────────
   const { targetUserId, is_active } = req.body

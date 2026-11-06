@@ -6,6 +6,11 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
+const ALLOWED_ROLES = ['staff', 'manager', 'admin']
+const assignedRole  = role || 'staff'
+if (!ALLOWED_ROLES.includes(assignedRole)) {
+  return res.status(400).json({ error: 'Invalid role' })
+}
 
 export default async function handler(req, res) {
   // Only allow POST
@@ -32,9 +37,13 @@ export default async function handler(req, res) {
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden — admin only' })
-  }
+const { data: allowed, error: permError } = await supabaseAdmin.rpc(
+  'user_has_permission',
+  { p_user: user.id, p_key: 'staff.manage' }
+)
+if (permError || allowed !== true) {
+  return res.status(403).json({ error: 'Forbidden' })
+}
 
   // ── Create the new staff auth user ──────────────────
   const { email, full_name, phone, role, password } = req.body
@@ -60,7 +69,7 @@ export default async function handler(req, res) {
   .update({
     full_name:            full_name.trim(),
     phone:                phone?.trim() || null,
-    role:                 role || 'staff',
+    role:                 assignedRole,
     is_active:            true,
     must_change_password: true,  // ← ADD THIS
   })
